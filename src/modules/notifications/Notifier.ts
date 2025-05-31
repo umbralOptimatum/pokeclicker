@@ -1,9 +1,20 @@
 import NotificationOption from './NotificationOption';
 import Sound from '../utilities/Sound';
 import Rand from '../utilities/Rand';
+import * as DisplayObservables from '../utilities/DisplayObservables';
 import type NotificationSetting from '../settings/NotificationSetting';
 
+type QueuedModalNotification = {
+    body: HTMLElement,
+    sound?: Sound,
+    timeout?: number,
+    onShown?: () => void,
+    onHidden?: () => void,
+};
+
 export default class Notifier {
+    private static modalQueue: QueuedModalNotification[] = [];
+
     public static notify({
         message,
         type = NotificationOption.primary,
@@ -89,6 +100,65 @@ export default class Notifier {
         });
     }
 
+    private static enqueueModalNotification(data: QueuedModalNotification) {
+        if (DisplayObservables.modalState.notifierDialogModal === 'hidden') {
+            Notifier.displayModalNotification(data);
+        } else {
+            Notifier.modalQueue.push(data);
+        }
+    }
+
+    private static dequeueModalNotification() {
+        Notifier.displayModalNotification(Notifier.modalQueue.shift());
+    }
+
+    private static displayModalNotification(data: QueuedModalNotification) {
+        const { body, sound, timeout, onShown, onHidden } = data;
+        const modal = $('#notifierDialogModal');
+
+        document.getElementById('notifierDialogModal-body').append(body);
+
+        // Start opening the modal
+        modal.modal({
+            backdrop: 'static',
+            show: true,
+        });
+
+        // If we have sounds enabled for this, play it now
+        if (sound) {
+            sound.play();
+        }
+
+        // Actions once the modal is shown
+        modal.one('shown.bs.modal', () => {
+            if (onShown) {
+                onShown();
+            }
+            if (timeout > 0) {
+                // Hide the modal after specified timeout
+                const timeoutID = setTimeout(() => modal.modal('hide'), timeout);
+                // Clear timeout if the modal is closed first
+                modal.one('hide.bs.modal', () => clearTimeout(timeoutID));
+            }
+        });
+
+        // Actions once the modal is hidden
+        modal.one('hidden.bs.modal', () => {
+            if (onHidden) {
+                onHidden();
+            }
+            Notifier.clearModalContent();
+            // Display next notification
+            if (Notifier.modalQueue.length) {
+                Notifier.dequeueModalNotification();
+            }
+        });
+    }
+
+    private static clearModalContent() {
+        document.getElementById('notifierDialogModal-body').replaceChildren();
+    }
+
     public static prompt({
         title,
         message,
@@ -100,23 +170,15 @@ export default class Notifier {
         message: string;
         type?: NotificationOption;
         timeout?: number;
-        sound?: Sound,
+        sound?: Sound;
     }): Promise<string> {
-        // If we have sounds enabled for this, play it now
-        if (sound) {
-            sound.play();
-        }
-
         return new Promise((resolve) => {
             // Get the notification ready to display
-            const modalID = Rand.string(7);
-            const html = `
-<div class="modal fade noselect" id="modal${modalID}" tabindex="-1" role="dialog" aria-badgeledby="prompt">
-    <div class="modal-dialog modal-dialog-scrollable modal-sm" role="document">
-        <div class="modal-content">
+            const dialogBody = document.createElement('div');
+            dialogBody.innerHTML = `
             <div class="modal-header modal-header pb-0 pt-2 px-2 bg-${NotificationOption[type]}">
                 <h5>${title}</h5>
-                <button id="promptClose${modalID}" type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <button id="notifierDialogModal-promptClose" type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -124,53 +186,37 @@ export default class Notifier {
                 ${message.replace(/\n/g, '<br/>')}
                 <br/>
                 <br/>
-                <input class="outline-dark form-control" placeholder="Type here.." id="promptInput${modalID}" type="text">
+                <input class="outline-dark form-control" placeholder="Type here..." id="notifierDialogModal-promptInput" type="text">
             </div>
             <div class="modal-footer p-2">
                 <button class="btn btn-block outline-dark btn-${NotificationOption[type]}" data-dismiss="modal">Submit</button>
-            </div>
-        </div>
-    </div>
-</div>`;
-            $('#toaster').before(html);
+            </div>`;
 
-            (document.getElementById(`promptInput${modalID}`) as HTMLInputElement).addEventListener('keyup', ({ key }) => {
+            (dialogBody.getElementById('notifierDialogModal-promptInput') as HTMLInputElement).addEventListener('keyup', ({ key }) => {
                 if (key === 'Enter') {
-                    $(`#modal${modalID}`).modal('hide');
+                    $('#notifierDialogModal').modal('hide');
                 }
                 if (key === 'Escape') {
-                    $(`#promptInput${modalID}`).val('');
-                }
-            });
-
-            $(`#modal${modalID}`).modal({
-                backdrop: 'static',
-                show: true,
-            });
-
-            // Once the modal is shown, hide it after specified timeout
-            $(`#modal${modalID}`).on('shown.bs.modal', () => {
-                (document.getElementById(`promptInput${modalID}`) as HTMLInputElement).focus();
-                if (timeout > 0) {
-                    setTimeout(() => {
-                        $(`#modal${modalID}`).modal('hide');
-                    }, timeout);
+                    $('#notifierDialogModal-promptInput').val('');
                 }
             });
 
             // Clean the input if the player closes the modal with the X
-            (document.getElementById(`promptClose${modalID}`) as HTMLInputElement).addEventListener('click', () => {
-                $(`#promptInput${modalID}`).val('');
+            (dialogBody.getElementById('notifierDialogModal-promptClose') as HTMLInputElement).addEventListener('click', () => {
+                $('#notifierDialogModal-promptInput').val('');
             });
 
-            // Once hidden remove the element
-            $(`#modal${modalID}`).on('hidden.bs.modal', () => {
-                const inputEl = document.getElementById(`promptInput${modalID}`) as HTMLInputElement;
-                const inputValue = inputEl?.value;
-                document.getElementById(`modal${modalID}`).remove();
-                resolve(inputValue);
+            Notifier.enqueueModalNotification({
+                body: dialogBody,
+                sound: sound,
+                timeout: timeout,
+                onShown: () => (document.getElementById('notifierDialogModal-promptInput') as HTMLInputElement).focus(),
+                onHidden: () => {
+                    const inputEl = document.getElementById('notifierDialogModal-promptInput') as HTMLInputElement;
+                    const inputValue = inputEl?.value;
+                    resolve(inputValue);
+                },
             });
-
         });
     }
 
@@ -189,20 +235,12 @@ export default class Notifier {
         cancel?: string;
         type?: NotificationOption;
         timeout?: number;
-        sound?: Sound,
+        sound?: Sound;
     }): Promise<boolean> {
-        // If we have sounds enabled for this, play it now
-        if (sound) {
-            sound.play();
-        }
-
         return new Promise((resolve) => {
             // Get the notification ready to display
-            const modalID = Rand.string(7);
-            const html = `
-<div class="modal fade noselect" id="modal${modalID}" tabindex="-1" role="dialog" aria-badgeledby="prompt">
-    <div class="modal-dialog modal-dialog-scrollable modal-sm" role="document">
-        <div class="modal-content">
+            const dialogBody = document.createElement('div');
+            dialogBody.innerHTML = `
             <div class="modal-header modal-header pb-0 pt-2 px-2 bg-${NotificationOption[type]}">
                 <h5>${title}</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -213,36 +251,19 @@ export default class Notifier {
                 ${message.replace(/\n/g, '<br/>')}
             </div>
             <div class="modal-footer p-2">
-                <button class="btn col outline-dark btn-${NotificationOption[type]}" data-dismiss="modal" id="modalConfirm${modalID}">${confirm}</button>
+                <button class="btn col outline-dark btn-${NotificationOption[type]}" data-dismiss="modal" id="notifierDialogModal-modalConfirm">${confirm}</button>
                 <button class="btn col outline-dark btn-secondary" data-dismiss="modal">${cancel}</button>
-            </div>
-        </div>
-    </div>
-</div>`;
-            $('#toaster').before(html);
+            </div>`;
 
-            (document.getElementById(`modalConfirm${modalID}`) as HTMLInputElement).addEventListener('click', () => {
+            (dialogBody.getElementById('notifierDialogModal-modalConfirm') as HTMLInputElement).addEventListener('click', () => {
                 resolve(true);
             });
 
-            $(`#modal${modalID}`).modal({
-                backdrop: 'static',
-                show: true,
-            });
-
-            // Once the modal is shown, hide it after specified timeout
-            $(`#modal${modalID}`).on('shown.bs.modal', () => {
-                if (timeout > 0) {
-                    setTimeout(() => {
-                        $(`#modal${modalID}`).modal('hide');
-                    }, timeout);
-                }
-            });
-
-            // Once hidden remove the element
-            $(`#modal${modalID}`).on('hidden.bs.modal', () => {
-                document.getElementById(`modal${modalID}`).remove();
-                resolve(false);
+            Notifier.enqueueModalNotification({
+                body: dialogBody,
+                sound: sound,
+                timeout: timeout,
+                onHidden: () => resolve(false),
             });
         });
     }
@@ -260,20 +281,12 @@ export default class Notifier {
         confirm?: string;
         type?: NotificationOption;
         timeout?: number;
-        sound?: Sound,
+        sound?: Sound;
     }): Promise<boolean> {
-        // If we have sounds enabled for this, play it now
-        if (sound) {
-            sound.play();
-        }
-
         return new Promise((resolve) => {
             // Get the notification ready to display
-            const modalID = Rand.string(7);
-            const html = `
-<div class="modal fade noselect" id="modal${modalID}" tabindex="-1" role="dialog" aria-badgeledby="prompt">
-    <div class="modal-dialog modal-dialog-scrollable modal-sm" role="document">
-        <div class="modal-content">
+            const dialogBody = document.createElement('div');
+            dialogBody.innerHTML = `
             <div class="modal-header modal-header pb-0 pt-2 px-2 bg-${NotificationOption[type]}">
                 <h5 class="modal-title">${title}</h5>
             </div>
@@ -281,35 +294,18 @@ export default class Notifier {
                 <i class="text-warning">${message.replace(/\n/g, '<br/>')}</i>
             </div>
             <div class="modal-footer p-2">
-                <button class="btn col outline-dark btn-${NotificationOption[type]}" data-dismiss="modal" id="modalConfirm${modalID}">${confirm}</button>
-            </div>
-        </div>
-    </div>
-</div>`;
-            $('#toaster').before(html);
+                <button class="btn col outline-dark btn-${NotificationOption[type]}" data-dismiss="modal" id="notifierDialogModal-modalConfirm">${confirm}</button>
+            </div>`;
 
-            (document.getElementById(`modalConfirm${modalID}`) as HTMLInputElement).addEventListener('click', () => {
+            (dialogBody.getElementById('notifierDialogModal-modalConfirm') as HTMLInputElement).addEventListener('click', () => {
                 resolve(true);
             });
 
-            $(`#modal${modalID}`).modal({
-                backdrop: 'static',
-                show: true,
-            });
-
-            // Once the modal is shown, hide it after specified timeout
-            $(`#modal${modalID}`).on('shown.bs.modal', () => {
-                if (timeout > 0) {
-                    setTimeout(() => {
-                        $(`#modal${modalID}`).modal('hide');
-                    }, timeout);
-                }
-            });
-
-            // Once hidden remove the element
-            $(`#modal${modalID}`).on('hidden.bs.modal', () => {
-                document.getElementById(`modal${modalID}`).remove();
-                resolve(false);
+            Notifier.enqueueModalNotification({
+                body: dialogBody,
+                sound: sound,
+                timeout: timeout,
+                onHidden: () => resolve(false),
             });
         });
     }

@@ -79,6 +79,13 @@
 <body class="no-select" data-bind="class: 'no-select ' + Settings.getSetting('theme').observableValue() + ' ' + Settings.getSetting('backgroundImage').observableValue(), attr : {'oncontextmenu' : 'return !' + Settings.getSetting('disableRightClickMenu').observableValue().toString() + ';'}">
 @import "dynamicBackground.html"
 
+<!-- Notification prompts -->
+<div class="modal fade noselect" id="notifierDialogModal" tabindex="-1" role="dialog" aria-badgeledby="prompt">
+    <div class="modal-dialog modal-dialog-scrollable modal-sm" role="document">
+        <div id="notifierDialogModal-body" class="modal-content"></div>
+    </div>
+</div>
+<!-- Notification toasts -->
 <div id="toaster" class="mw-100"></div>
 <link id="theme-link" href="https://bootswatch.com/4/yeti/bootstrap.min.css" rel="stylesheet" data-bind="attr: {href: 'https://bootswatch.com/4/' + Settings.getSetting('theme').observableValue() + '/bootstrap.min.css'}">
 
