@@ -14,6 +14,7 @@ type QueuedModalNotification = {
 
 export default class Notifier {
     private static modalQueue: QueuedModalNotification[] = [];
+    private static modalOpen = false;
 
     public static notify({
         message,
@@ -101,10 +102,10 @@ export default class Notifier {
     }
 
     private static enqueueModalNotification(data: QueuedModalNotification) {
-        if (DisplayObservables.modalState.notifierDialogModal === 'hidden') {
-            Notifier.displayModalNotification(data);
-        } else {
+        if (Notifier.modalOpen) {
             Notifier.modalQueue.push(data);
+        } else {
+            Notifier.displayModalNotification(data);
         }
     }
 
@@ -113,11 +114,12 @@ export default class Notifier {
     }
 
     private static displayModalNotification(data: QueuedModalNotification) {
-        const { body, sound, timeout, onShown, onHidden } = data;
+        const { content, sound, timeout, onShown, onHidden } = data;
         const modal = $('#notifierDialogModal');
 
-        document.getElementById('notifierDialogModal-container').append(body);
+        document.getElementById('notifierDialogModal-container').append(content);
 
+        Notifier.modalOpen = true;
         // Start opening the modal
         modal.modal({
             backdrop: 'static',
@@ -148,6 +150,7 @@ export default class Notifier {
                 onHidden();
             }
             Notifier.clearModalContent();
+            Notifier.modalOpen = false;
             // Display next notification
             if (Notifier.modalQueue.length) {
                 Notifier.dequeueModalNotification();
@@ -178,7 +181,7 @@ export default class Notifier {
                 <input class="outline-dark form-control" placeholder="Type here..." id="notifierDialogModal-promptInput" type="text">`;
             const dialogContent = Notifier.createDialogContent(title, dialogBody, type, 'Submit');
 
-            (dialogContent.getElementById('notifierDialogModal-promptInput') as HTMLInputElement).addEventListener('keyup', ({ key }) => {
+            (dialogContent.querySelector('#notifierDialogModal-promptInput') as HTMLInputElement).addEventListener('keyup', ({ key }) => {
                 if (key === 'Enter') {
                     $('#notifierDialogModal').modal('hide');
                 }
@@ -188,7 +191,7 @@ export default class Notifier {
             });
 
             // Clean the input if the player closes the modal with the X
-            (dialogContent.getElementById('notifierDialogModal-closeButton') as HTMLInputElement).addEventListener('click', () => {
+            (dialogContent.querySelector('#notifierDialogModal-closeButton') as HTMLInputElement).addEventListener('click', () => {
                 $('#notifierDialogModal-promptInput').val('');
             });
 
@@ -228,7 +231,7 @@ export default class Notifier {
             const dialogContent = Notifier.createDialogContent(title, message.replace(/\n/g, '<br/>'), type, confirm, cancel);
 
             // Confirm button
-            (dialogContent.getElementById('notifierDialogModal-buttonA') as HTMLInputElement).addEventListener('click', () => {
+            (dialogContent.querySelector('#notifierDialogModal-buttonA') as HTMLInputElement).addEventListener('click', () => {
                 resolve(true);
             });
 
@@ -261,7 +264,7 @@ export default class Notifier {
             const dialogBody = `<div class="text-center"><i class="text-warning">${message.replace(/\n/g, '<br/>')}</i></div>`;
             const dialogContent = Notifier.createDialogContent(title, dialogBody, type, confirm);
 
-            (dialogContent.getElementById('notifierDialogModal-buttonA') as HTMLInputElement).addEventListener('click', () => {
+            (dialogContent.querySelector('#notifierDialogModal-buttonA') as HTMLInputElement).addEventListener('click', () => {
                 resolve(true);
             });
 
@@ -287,7 +290,6 @@ export default class Notifier {
             ${dialogBody}
         </div>
         <div class="modal-footer p-2">
-            <button class="btn btn-block outline-dark btn-${NotificationOption[type]}" data-dismiss="modal">Submit</button>
             <button id="notifierDialogModal-buttonA" class="btn col outline-dark btn-${NotificationOption[type]}" data-dismiss="modal">${buttonA}</button>
             ${ buttonB ? `<button id="notifierDialogModal-buttonB" class="btn col outline-dark btn-secondary" data-dismiss="modal">${buttonB}</button>` : ''}
         </div>`;
