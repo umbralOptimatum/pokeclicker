@@ -5,7 +5,7 @@ import * as DisplayObservables from '../utilities/DisplayObservables';
 import type NotificationSetting from '../settings/NotificationSetting';
 
 type QueuedModalNotification = {
-    body: HTMLElement,
+    content: HTMLElement,
     sound?: Sound,
     timeout?: number,
     onShown?: () => void,
@@ -116,7 +116,7 @@ export default class Notifier {
         const { body, sound, timeout, onShown, onHidden } = data;
         const modal = $('#notifierDialogModal');
 
-        document.getElementById('notifierDialogModal-body').append(body);
+        document.getElementById('notifierDialogModal-container').append(body);
 
         // Start opening the modal
         modal.modal({
@@ -156,7 +156,7 @@ export default class Notifier {
     }
 
     private static clearModalContent() {
-        document.getElementById('notifierDialogModal-body').replaceChildren();
+        document.getElementById('notifierDialogModal-container').replaceChildren();
     }
 
     public static prompt({
@@ -174,25 +174,11 @@ export default class Notifier {
     }): Promise<string> {
         return new Promise((resolve) => {
             // Get the notification ready to display
-            const dialogBody = document.createElement('div');
-            dialogBody.innerHTML = `
-            <div class="modal-header modal-header pb-0 pt-2 px-2 bg-${NotificationOption[type]}">
-                <h5>${title}</h5>
-                <button id="notifierDialogModal-promptClose" type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body py-2 px-2 text-left">
-                ${message.replace(/\n/g, '<br/>')}
-                <br/>
-                <br/>
-                <input class="outline-dark form-control" placeholder="Type here..." id="notifierDialogModal-promptInput" type="text">
-            </div>
-            <div class="modal-footer p-2">
-                <button class="btn btn-block outline-dark btn-${NotificationOption[type]}" data-dismiss="modal">Submit</button>
-            </div>`;
+            const dialogBody = `${message.replace(/\n/g, '<br/>')}<br/><br/>
+                <input class="outline-dark form-control" placeholder="Type here..." id="notifierDialogModal-promptInput" type="text">`;
+            const dialogContent = Notifier.createDialogContent(title, dialogBody, type, 'Submit');
 
-            (dialogBody.getElementById('notifierDialogModal-promptInput') as HTMLInputElement).addEventListener('keyup', ({ key }) => {
+            (dialogContent.getElementById('notifierDialogModal-promptInput') as HTMLInputElement).addEventListener('keyup', ({ key }) => {
                 if (key === 'Enter') {
                     $('#notifierDialogModal').modal('hide');
                 }
@@ -202,12 +188,12 @@ export default class Notifier {
             });
 
             // Clean the input if the player closes the modal with the X
-            (dialogBody.getElementById('notifierDialogModal-promptClose') as HTMLInputElement).addEventListener('click', () => {
+            (dialogContent.getElementById('notifierDialogModal-closeButton') as HTMLInputElement).addEventListener('click', () => {
                 $('#notifierDialogModal-promptInput').val('');
             });
 
             Notifier.enqueueModalNotification({
-                body: dialogBody,
+                content: dialogContent,
                 sound: sound,
                 timeout: timeout,
                 onShown: () => (document.getElementById('notifierDialogModal-promptInput') as HTMLInputElement).focus(),
@@ -239,28 +225,15 @@ export default class Notifier {
     }): Promise<boolean> {
         return new Promise((resolve) => {
             // Get the notification ready to display
-            const dialogBody = document.createElement('div');
-            dialogBody.innerHTML = `
-            <div class="modal-header modal-header pb-0 pt-2 px-2 bg-${NotificationOption[type]}">
-                <h5>${title}</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body py-2 px-2 text-left">
-                ${message.replace(/\n/g, '<br/>')}
-            </div>
-            <div class="modal-footer p-2">
-                <button class="btn col outline-dark btn-${NotificationOption[type]}" data-dismiss="modal" id="notifierDialogModal-modalConfirm">${confirm}</button>
-                <button class="btn col outline-dark btn-secondary" data-dismiss="modal">${cancel}</button>
-            </div>`;
+            const dialogContent = Notifier.createDialogContent(title, message.replace(/\n/g, '<br/>'), type, confirm, cancel);
 
-            (dialogBody.getElementById('notifierDialogModal-modalConfirm') as HTMLInputElement).addEventListener('click', () => {
+            // Confirm button
+            (dialogContent.getElementById('notifierDialogModal-buttonA') as HTMLInputElement).addEventListener('click', () => {
                 resolve(true);
             });
 
             Notifier.enqueueModalNotification({
-                body: dialogBody,
+                content: dialogContent,
                 sound: sound,
                 timeout: timeout,
                 onHidden: () => resolve(false),
@@ -285,28 +258,39 @@ export default class Notifier {
     }): Promise<boolean> {
         return new Promise((resolve) => {
             // Get the notification ready to display
-            const dialogBody = document.createElement('div');
-            dialogBody.innerHTML = `
-            <div class="modal-header modal-header pb-0 pt-2 px-2 bg-${NotificationOption[type]}">
-                <h5 class="modal-title">${title}</h5>
-            </div>
-            <div class="modal-body py-2 px-2 text-left text-center">
-                <i class="text-warning">${message.replace(/\n/g, '<br/>')}</i>
-            </div>
-            <div class="modal-footer p-2">
-                <button class="btn col outline-dark btn-${NotificationOption[type]}" data-dismiss="modal" id="notifierDialogModal-modalConfirm">${confirm}</button>
-            </div>`;
+            const dialogBody = `<div class="text-center"><i class="text-warning">${message.replace(/\n/g, '<br/>')}</i></div>`;
+            const dialogContent = Notifier.createDialogContent(title, dialogBody, type, confirm);
 
-            (dialogBody.getElementById('notifierDialogModal-modalConfirm') as HTMLInputElement).addEventListener('click', () => {
+            (dialogContent.getElementById('notifierDialogModal-buttonA') as HTMLInputElement).addEventListener('click', () => {
                 resolve(true);
             });
 
             Notifier.enqueueModalNotification({
-                body: dialogBody,
+                content: dialogContent,
                 sound: sound,
                 timeout: timeout,
                 onHidden: () => resolve(false),
             });
         });
+    }
+
+    private static createDialogContent(title: string, dialogBody: string, type: NotificationOption, buttonA: string, buttonB?: string) {
+        const dialogContent = document.createElement('div');
+        dialogContent.innerHTML = `
+        <div class="modal-header modal-header pb-0 pt-2 px-2 bg-${NotificationOption[type]}">
+            <h5>${title}</h5>
+            <button id="notifierDialogModal-closeButton" type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+        <div class="modal-body py-2 px-2 text-left">
+            ${dialogBody}
+        </div>
+        <div class="modal-footer p-2">
+            <button class="btn btn-block outline-dark btn-${NotificationOption[type]}" data-dismiss="modal">Submit</button>
+            <button id="notifierDialogModal-buttonA" class="btn col outline-dark btn-${NotificationOption[type]}" data-dismiss="modal">${buttonA}</button>
+            ${ buttonB ? `<button id="notifierDialogModal-buttonB" class="btn col outline-dark btn-secondary" data-dismiss="modal">${buttonB}</button>` : ''}
+        </div>`;
+        return dialogContent;
     }
 }
