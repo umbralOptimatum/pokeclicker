@@ -9,10 +9,14 @@ import memoize from '../utilities/memoize';
 import Language from './Language';
 import { PokemonNameType } from '../pokemons/PokemonNameType';
 import Notifier from '../notifications/Notifier';
+import type { TranslationOutput } from './Translatable';
 
-export type TranslationNamespace = 'pokemon' | 'logbook' | 'settings' | 'questlines';
+export type TranslationNamespace = 'pokemon' | 'logbook' | 'settings' | 'questlines' | 'npcs';
 export type TranslationVar = string | number | PokemonNameType;
 export type TranslationVars = Record<string, TranslationVar>;
+
+type GetTranslationOutputType<T extends TOptions | undefined> = T extends { defaultValue: infer V extends TranslationOutput} ? V
+    : T extends { returnObjects: true } ? string[] : string;
 
 const getTranslatedMemoResolver = (
     key: string,
@@ -23,29 +27,30 @@ const getTranslatedMemoResolver = (
         return null;
     }
 
-    return `${namespace}:${key}`;
+    return `${namespace}::${key}`;
 };
 export default class Translate {
     private languageUpdated: Observable<number>;
     // For easy exporting of translation keys/values from dev builds
-    public cachedTranslationDefaults?: Record<string, TranslationVars>; // { namespace: { key: defaultValue }}
+    public cachedTranslationDefaults?: Record<string, Record<string, TranslationOutput>>; // { namespace: { key: defaultValue }}
+    public useTranslationCache: boolean;
 
-    get = memoize((
+    get = memoize(<T extends TOptions | undefined>(
         key: string,
         namespace: string,
-        otherOptions?: TOptions,
-    ): PureComputed<string> => ko.pureComputed(() => {
+        otherOptions?: T,
+    ): PureComputed<GetTranslationOutputType<T>> => ko.pureComputed(() => {
         // recompute when language changes
         this.languageUpdated();
 
         return i18next.t(key, {
             ...(otherOptions ?? {}),
             ns: namespace,
-        });
+        }) as GetTranslationOutputType<T>;
     }), getTranslatedMemoResolver);
 
     constructor(languageSetting: Setting<Language>) {
-        const namespaces: TranslationNamespace[] = ['pokemon', 'logbook', 'settings', 'questlines'];
+        const namespaces: TranslationNamespace[] = ['pokemon', 'logbook', 'settings', 'questlines', 'npcs'];
         this.languageUpdated = ko.observable(0);
 
         let translationsUrlOverride = new URLSearchParams(window.location.search).get('translations');
@@ -58,7 +63,8 @@ export default class Translate {
         }
 
         const cacheUrlOverride = new URLSearchParams(window.location.search).get('translationCache');
-        if (cacheUrlOverride != null ? cacheUrlOverride.toLowerCase() == 'true' : GameHelper.isDevelopmentBuild()) {
+        this.useTranslationCache = cacheUrlOverride != null ? cacheUrlOverride.toLowerCase() == 'true' : GameHelper.isDevelopmentBuild();
+        if (this.useTranslationCache) {
             this.cachedTranslationDefaults = {};
             namespaces.forEach(ns => { this.cachedTranslationDefaults[ns] = {}; });
         }
@@ -107,28 +113,28 @@ export default class Translate {
         });
     }
 
-    public translationHashKey(key: string, defaultValue: string) {
-        return `${key}.${GameHelper.nonnegativeHashString(defaultValue)}`;
+    public translationHashKey(key: string, defaultValue: TranslationOutput) {
+        return `${key}.${GameHelper.nonnegativeHashString(String(defaultValue))}`;
     }
 
     /**
      * Combines the translation key with a hash of the default text, making the key change whenever the default text does.
      * This invalidates outdated translations instead of risking the translations becoming inaccurate. 
      */
-    public getHashed(key: string, namespace: string, defaultValue: string, otherOptions?: TOptions) {
+    public getHashed<T extends TranslationOutput>(key: string, namespace: string, defaultValue: T, otherOptions: TOptions = {}): PureComputed<typeof defaultValue> {
         if (!defaultValue?.length) {
             throw new Error(`Failed to create hashed translation key for '${namespace}.${key}' as the default translation was missing or blank`);
         }
         const hashedKey = this.translationHashKey(key, defaultValue);
-        if (this.cachedTranslationDefaults) {
+        if (this.useTranslationCache) {
             this.cacheDefaultValue(hashedKey, namespace, defaultValue);
         }
-        return this.get(hashedKey, namespace, { ...(otherOptions ?? {}), defaultValue });
+        return this.get(hashedKey, namespace, { ...otherOptions, defaultValue }) as PureComputed<T>;
     }
 
-    private cacheDefaultValue(key: string, namespace: string, defaultValue: string) {
+    private cacheDefaultValue(key, namespace: string, defaultValue: TranslationOutput) {
         let cached = this.cachedTranslationDefaults[namespace][key];
-        if (cached && cached != defaultValue) {
+        if (cached && !(Array.isArray(cached) && Array.isArray(defaultValue) ? GameHelper.shallowEqual(cached as Array<unknown>, defaultValue as Array<unknown>) : cached == defaultValue)) {
             throw new Error(`Translation cache encountered conflicting default values for key '${namespace}.${key}':\n"${cached}"\n"${defaultValue}"`);
         }
         this.cachedTranslationDefaults[namespace][key] = defaultValue;

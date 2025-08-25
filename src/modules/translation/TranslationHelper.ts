@@ -5,6 +5,20 @@ import GameHelper from '../GameHelper';
 
 export default class TranslationHelper {
     /**
+     * Replaces English pokemon names in a string with the corresponding translation key.
+     * 
+     * Creates the arrow function within a closure so the RegExp list doesn't need to be rebuilt for each call.
+     */
+    private static replacePokemonNames: (string) => string = (() => {
+        // regex matches escaped pokemon name, if not adjacent to a word character (i.e. mid-string) and not already part of a translation key
+        // reversed to catch more-specific alt forms before the base name
+        const pokemonNames = pokemonList.map(p => {
+            return RegExp(String.raw`(?<!\w|\[\[pokemon::)(${p.name.replace(/([()-.?])/g, '\\$1')})(?!\w|]])`, 'g');
+        }).reverse();
+        return (text) => pokemonNames.reduce((t, regex) => t.replace(regex, '[[pokemon::$1]]'), text);
+    })();
+
+    /**
      * Converts translation key/defaults to a tree as in the actual translation files.
      * @param namespace - The translation namespace to export
      * @param keyOrder - Optional array of key names. Matching keys will be sorted in that order in the output JSON.
@@ -23,12 +37,16 @@ export default class TranslationHelper {
         }
 
         let exportTree = Object.create(null);
-        const namespaceCache = {...App.translation.cachedTranslationDefaults[namespace]};
+        const namespaceCache = { ...App.translation.cachedTranslationDefaults[namespace] };
 
         // modify default text if applicable
         if (replacePokemonNames) {
             Object.entries(namespaceCache).forEach(([key, defaultValue]) => {
-                namespaceCache[key] = TranslationHelper.replacePokemonNames(defaultValue);
+                if (Array.isArray(defaultValue)) {
+                    namespaceCache[key] = defaultValue.map(t => TranslationHelper.replacePokemonNames(t));
+                } else {
+                    namespaceCache[key] = TranslationHelper.replacePokemonNames(defaultValue);
+                }
             });
         }
 
@@ -54,7 +72,7 @@ export default class TranslationHelper {
 
         // Sorts keys by provided order, followed by any other keys in numeric + lexicographical order
         const keyOrderLookup = {};
-        (keyOrder ?? []).forEach((key, i) => keyOrderLookup[key] = i);
+        (keyOrder ?? []).forEach((key, i) => { keyOrderLookup[key] = i; });
         const compareKeys = (a: [string, unknown], b: [string, unknown]) => {
             const [key1] = a;
             const [key2] = b;
@@ -85,14 +103,14 @@ export default class TranslationHelper {
                 .sort(compareKeys) // sort by this layer's keys before merging any child keys
                 .map(entry => {
                     let [key, val] = entry;
-                    while (typeof val == 'object' && Object.keys(val).length == 1)  {
+                    while (typeof val == 'object' && !Array.isArray(val) && Object.keys(val).length == 1)  {
                         // If this entry contains an object with only one entry, merge the keys and remove the unnecessary layer
                         // i.e. { 'a': {'b': { 'c': 1, 'd': 2 } }} -> { 'a.b': { 'c': 1, 'd': 2 }}
                         const childKey = Object.keys(val)[0];
                         key = `${key}.${childKey}`;
                         val = val[childKey];
                     }
-                    if (typeof val == 'object' && Object.keys(val).length) {
+                    if (typeof val == 'object' && !Array.isArray(val)  && Object.keys(val).length) {
                         // simplify child objects
                         val = recursiveSimplify(val);
                     }
@@ -107,20 +125,6 @@ export default class TranslationHelper {
         const outputFile = JSON.stringify(exportTree, null, 2);
         DownloadUtil.downloadTextFile(outputFile, `${namespace}.json`);
     }
-
-    /**
-     * Replaces English pokemon names in a string with the corresponding translation key.
-     * 
-     * Creates the arrow function within a closure so the RegExp list doesn't need to be rebuilt for each call.
-     */
-    private static replacePokemonNames: (string) => string = (() => {
-        // regex matches escaped pokemon name, if not adjacent to a word character (i.e. mid-string) and not already part of a translation key
-        // reversed to catch more-specific alt forms before the base name
-        const pokemonNames = pokemonList.map(p => {
-            return RegExp(String.raw`(?<!\w|\[\[pokemon::)(${p.name.replace(/([()-.?])/g, '\\$1')})(?!\w|]])`, 'g')
-        }).reverse();
-        return (text) => pokemonNames.reduce((t, regex) => t.replace(regex, '[[pokemon::$1]]'), text);
-    })();
 
     public static exportQuestlineTranslationDefaults(): void {
         // Make sure all questline translatable text has been loaded by App.translation
