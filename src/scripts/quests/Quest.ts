@@ -5,6 +5,7 @@ type QuestOptionalArgument = {
     npcImageName?: string,
 };
 
+@translatable('quests', {'_description': 'description'})
 abstract class Quest {
     index: number;
     amount: number
@@ -47,18 +48,26 @@ abstract class Quest {
         return true;
     }
 
+    get translationKey(): string {
+        if (!this.inQuestLine) {
+            return `quests.${this.prototype.name}`;
+        }
+        return `questlines.${this.parentQuestLine.name}.step ${this.parentQuestLine.quests().indexOf(this) + 1}`;
+    }
+
+    get _description(): string {
+        this.customDescription ?? this.defaultDescription;
+    }
+
     get description(): string {
         const description = this.customDescription ?? this.defaultDescription;
-        if (!this.inQuestLine) {
-            // Quest translations currently only supported for questlines
-            return description;
-        }
+
         if (!this.cachedTranslatedDescription) {
             this.cachedTranslatedDescription = App.translation.getHashed(
                 // Pre-hash keys are formatted like "Example Quest.step 1"
-                `${this.parentQuestLine.name}.step ${this.parentQuestLine.quests().indexOf(this) + 1}`,
-                'questlines',
-                description
+                this.translationKey,
+                'quests',
+                description.
             );
         }
         return this.cachedTranslatedDescription();

@@ -1,3 +1,4 @@
+@translatable('quests', {'name': 'displayName', '_description': 'description'})
 class QuestLine {
     private cachedTranslatedName?: KnockoutComputed<string>;
     private _description: string;
@@ -144,11 +145,15 @@ class QuestLine {
         return true;
     }
 
+    get translationKey(): string {
+        return this.name;
+    }
+
     get displayName(): string {
         if (!this.cachedTranslatedName) {
             this.cachedTranslatedName = App.translation.getHashed(
-                `${this.name}.displayName`,
-                'questlines',
+                `${this.translationKey}.displayName`,
+                'quests',
                 this.name
             );
         }
@@ -158,8 +163,8 @@ class QuestLine {
     get description(): string {
         if (!this.cachedTranslatedDescription) {
             this.cachedTranslatedDescription = App.translation.getHashed(
-                `${this.name}.description`,
-                'questlines',
+                `${this.translationKey}.description`,
+                'quests',
                 this._description
             );
         }

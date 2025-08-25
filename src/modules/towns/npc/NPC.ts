@@ -16,7 +16,7 @@ export type NPCOptionalArgument = {
     saveKey?: string,
 };
 
-@translatable('npcs', ['dialog, _displayName'])
+@translatable('npcs', ['dialog', 'displayName'])
 export default class NPC {
     public talkedTo = ko.observable<boolean>(false); // Used for custom quests
     public saveKey = 0;

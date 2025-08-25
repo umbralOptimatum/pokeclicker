@@ -11,7 +11,7 @@ import { PokemonNameType } from '../pokemons/PokemonNameType';
 import Notifier from '../notifications/Notifier';
 import type { TranslationOutput } from './Translatable';
 
-export type TranslationNamespace = 'pokemon' | 'logbook' | 'settings' | 'questlines' | 'npcs';
+export type TranslationNamespace = 'pokemon' | 'logbook' | 'settings' | 'quests' | 'npcs';
 export type TranslationVar = string | number | PokemonNameType;
 export type TranslationVars = Record<string, TranslationVar>;
 
