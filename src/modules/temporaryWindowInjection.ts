@@ -230,6 +230,7 @@ import DamageCalculator from './types/DamageCalculator';
 import GameLoadState from './utilities/GameLoadState';
 import GenericDeal, { DealCostOrProfitType } from './deal/GenericDeal';
 import areaStatus from './enums/AreaStatus';
+import translate from './translation/TranslationHelper';
 import TranslationHelper from './translation/TranslationHelper';
 import * as DownloadUtil from './utilities/DownloadUtil';
 
@@ -477,6 +478,7 @@ Object.assign(<any>window, {
     DamageCalculator,
     GameLoadState,
     areaStatus,
+    translate
     TranslationHelper,
     DownloadUtil,
 });
