@@ -233,6 +233,9 @@ import areaStatus from './enums/AreaStatus';
 import translate from './translation/TranslationHelper';
 import TranslationHelper from './translation/TranslationHelper';
 import * as DownloadUtil from './utilities/DownloadUtil';
+import NPC from './towns/npc/NPC';
+import NPCType from './towns/npc/NPCType';
+import NPCList from './towns/npc/NPCList';
 
 Object.assign(<any>window, {
     SaveSelector,
@@ -481,4 +484,7 @@ Object.assign(<any>window, {
     translate
     TranslationHelper,
     DownloadUtil,
+    NPC,
+    NPCType,
+    NPCList,
 });

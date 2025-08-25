@@ -1,14 +1,13 @@
-///<reference path="./NPC.ts"/>
-
 class GiftNPC extends NPC {
     constructor(
-        public name: string,
+        public readonly name: string,
+        displayName: string,
         public dialog: string[],
         public giftFunction: () => void,
         public giftImage?: string,
         options: NPCOptionalArgument = {}
     ) {
-        super(name, dialog, options, NPCType.Gift);
+        super(name, displayName, dialog, options, NPCType.Gift);
     }
 
     public isVisible() {

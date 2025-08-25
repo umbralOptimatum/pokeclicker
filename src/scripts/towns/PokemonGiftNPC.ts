@@ -1,6 +1,7 @@
 class PokemonGiftNPC extends GiftNPC {
     constructor(
-        public name: string,
+        public readonly name: string,
+        displayName: string,
         public dialog: string[],
         public giftPokemon: PokemonNameType,
         public giftImage?: string,
@@ -9,7 +10,7 @@ class PokemonGiftNPC extends GiftNPC {
         const giftFunction = () => {
             App.game.party.gainPokemonByName(this.giftPokemon, PokemonFactory.generateShiny(GameConstants.SHINY_CHANCE_REWARD));
         };
-        super(name, dialog, giftFunction, giftImage, options);
+        super(name, displayName, dialog, giftFunction, giftImage, options);
     }
 
     public areaStatus(): areaStatus[] {
