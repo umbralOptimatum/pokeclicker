@@ -1,11 +1,11 @@
 class TalkToNPCQuest extends Quest implements QuestInterface {
     npc: NPC;
 
-    constructor(npc: NPC, description: string, reward = 0) {
+    constructor(npc: string, description: string, reward = 0) {
         super(1, reward);
-        this.npc = npc;
+        this.npc = NPCList[npc];
         this.customDescription = description;
-        this.focus = npc.talkedTo;
+        this.focus = this.npc.talkedTo;
     }
 
     begin() {

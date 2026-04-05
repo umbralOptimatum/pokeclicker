@@ -1,6 +1,5 @@
 /// <reference path="../../declarations/TemporaryScriptTypes.d.ts" />
 ///<reference path="../../declarations/enums/Badges.d.ts"/>
-///<reference path="NPC.ts"/>
 ///<reference path="KantoBerryMasterNPC.ts"/>
 ///<reference path="ProfNPC.ts"/>
 ///<reference path="RoamerNPC.ts"/>
@@ -11,7 +10,7 @@
 
 type TownOptionalArgument = {
     requirements?: Requirement[],
-    npcs?: NPC[],
+    npcs?: string[],
     ignoreAreaStatus?: boolean
 };
 
@@ -38,7 +37,7 @@ class Town implements TmpTownType {
         this.name = name;
         this.region = region;
         this.requirements = optional.requirements || [];
-        this.npcs = optional.npcs;
+        this.npcs = optional.npcs?.map(npc => NPCList[npc]);
         this.startingTown = GameConstants.StartingTowns.includes(this.name);
         this.content = content;
         this.subRegion = subRegion;
@@ -57,8 +56,11 @@ class Town implements TmpTownType {
             }
             this.content.push(new NextRegionTownContent());
         }
-        content.forEach((c) => {
+        this.content.forEach((c) => {
             c.addParent(this);
+        });
+        this.npcs?.forEach((npc) => {
+            npc.addParent(this);
         });
     }
 
